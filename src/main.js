@@ -14,22 +14,29 @@
   window.sendMessageToAI = function() {
     console.log('[GLOBAL-FUNC] sendMessageToAI pozvan!');
     const promptEl = document.getElementById('ai-prompt');
-    if (promptEl) {
-      const val = promptEl.value.trim();
-      console.log('[GLOBAL-FUNC] Prompt value:', val);
-      if (val) {
-        promptEl.value = '';
-        if (window.triggerAI) {
-          console.log('[GLOBAL-FUNC] Pozivam triggerAI...');
-          window.triggerAI(val);
-        } else {
-          console.error('[GLOBAL-FUNC] triggerAI funkcija ne postoji!');
-        }
-      } else {
-        console.warn('[GLOBAL-FUNC] Prazan prompt!');
-      }
+    
+    if (!promptEl) {
+      console.error('[GLOBAL-FUNC] ❌ ai-prompt element nije pronađen!');
+      return;
+    }
+    
+    // VAŽNO: Pročitaj vrednost PRE nego što se triggerAI pozove!
+    const val = promptEl.value.trim();
+    console.log('[GLOBAL-FUNC] Prompt value:', val);
+    
+    if (!val) {
+      console.warn('[GLOBAL-FUNC] Prazan prompt!');
+      return;
+    }
+    
+    // Očisti vrednost PRE pozivanja triggerAI
+    promptEl.value = '';
+    
+    if (window.triggerAI) {
+      console.log('[GLOBAL-FUNC] ✅ Pozivam triggerAI sa:', val);
+      window.triggerAI(val);
     } else {
-      console.error('[GLOBAL-FUNC] ai-prompt element nije pronađen!');
+      console.error('[GLOBAL-FUNC] ❌ triggerAI funkcija ne postoji!');
     }
   };
 
@@ -74,33 +81,46 @@
       else if (mode === 'result') { w = 260; h = 260; } // taller to show debug logs
       else if (mode === 'none') { w = 1; h = 1; }
 
-      await appWindow.setSize(new LogicalSize(w, h));
-      await appWindow.setIgnoreCursorEvents(mode === 'none');
+      try {
+        await appWindow.setSize(new LogicalSize(w, h));
+      } catch (e) {
+        console.warn('[SYNC] setSize greška (možda nedostaju permisije):', e.message);
+      }
+      
+      try {
+        await appWindow.setIgnoreCursorEvents(mode === 'none');
+      } catch (e) {
+        console.warn('[SYNC] setIgnoreCursorEvents greška:', e.message);
+      }
 
       // Delay slightly for size change to reflect in OS
       await new Promise(r => setTimeout(r, 10));
 
-      let monitor = await appWindow.currentMonitor();
-      if (!monitor) monitor = (await appWindow.availableMonitors())[0];
+      try {
+        let monitor = await appWindow.currentMonitor();
+        if (!monitor) monitor = (await appWindow.availableMonitors())[0];
 
-      if (monitor) {
-        const factor = monitor.scaleFactor;
-        const screenW = monitor.size.width / factor;
-        const screenH = monitor.size.height / factor;
+        if (monitor) {
+          const factor = monitor.scaleFactor;
+          const screenW = monitor.size.width / factor;
+          const screenH = monitor.size.height / factor;
 
-        // Positioning: bottom right with a small margin for taskbar
-        let posX = screenW - w - 10;
-        let posY = screenH - h - 50;
+          // Positioning: bottom right with a small margin for taskbar
+          let posX = screenW - w - 10;
+          let posY = screenH - h - 50;
 
-        if (mode === 'none') {
-          posX = screenW - 1;
-          posY = screenH - 1;
+          if (mode === 'none') {
+            posX = screenW - 1;
+            posY = screenH - 1;
+          }
+
+          await appWindow.setPosition(new LogicalPosition(Math.floor(posX), Math.floor(posY)));
         }
-
-        await appWindow.setPosition(new LogicalPosition(Math.floor(posX), Math.floor(posY)));
+      } catch (e) {
+        console.warn('[SYNC] setPosition greška:', e.message);
       }
     } catch (e) {
-      console.error("Sync error:", e);
+      console.error("[SYNC] Sync error:", e);
     }
   }
 
@@ -214,42 +234,55 @@
   // ---- AI core function ----
   // Expose globally for inline onclick
   window.triggerAI = async function triggerAI(val) {
-    console.log('[TRIGGER] triggerAI pozvan sa:', val);
+    console.log('========================================');
+    console.log('[FLOW] 🚀 KORISNIK JE KLIKNUO SEND!');
+    console.log('[FLOW] 📝 Prompt:', val);
+    console.log('========================================');
     
     if (!val) {
-      console.warn('[TRIGGER] Prazan prompt, izlazim');
+      console.warn('[FLOW] ⚠️ Prazan prompt, izlazim');
       return;
     }
     
-    console.log('[TRIGGER] Postavljam UI...');
+    console.log('[FLOW] 1️⃣ Postavljam UI...');
     inputContainer.style.display = 'none';
 
     stealthResult.classList.remove('fail');
     resLabel.innerHTML = '<span style="font-size:10px; opacity:0.7;">[ INIT ]</span>';
     stealthResult.style.display = 'block';
 
-    console.log('[TRIGGER] Sync pozicije...');
+    console.log('[FLOW] 2️⃣ Sync pozicije...');
     await syncPosition('result');
-    await appWindow.show();
-    await appWindow.setFocus();
+    
+    try {
+      await appWindow.show();
+    } catch (e) {
+      console.warn('[FLOW] show() greška (možda nedostaju permisije):', e.message);
+    }
+    
+    try {
+      await appWindow.setFocus();
+    } catch (e) {
+      console.warn('[FLOW] setFocus() greška:', e.message);
+    }
 
     const dbg = (msg) => {
-      console.log('[DBG]', msg);
+      console.log('[FLOW-DBG]', msg);
       resLabel.innerHTML += '<br><span style="font-size:10px; color:#93c5fd;">→ ' + msg + '</span>';
     };
     const dbgErr = (msg) => {
-      console.error('[ERR]', msg);
+      console.error('[FLOW-ERR]', msg);
       resLabel.innerHTML += '<br><b style="font-size:10px; color:#fca5a5;">❌ ' + msg + '</b>';
     };
 
     // Step 1: Check localStorage
-    console.log('[TRIGGER] Proveravam localStorage...');
+    console.log('[FLOW] 3️⃣ Proveravam localStorage za Client ID...');
     const id = localStorage.getItem('clientId');
-    console.log('[TRIGGER] Client ID iz localStorage:', id);
+    console.log('[FLOW] ✅ Client ID iz localStorage:', id);
     dbg('clientId: ' + (id ? id.substring(0, 10) + '...' : 'NULL!'));
 
     if (!id) {
-      console.error('[TRIGGER] Nema Client ID!');
+      console.error('[FLOW] ❌ Nema Client ID!');
       dbgErr('Nema Client ID! Otvori hub (Ctrl+Shift+A).');
       stealthResult.classList.add('fail');
       setTimeout(() => syncPosition('result'), 50);
@@ -257,23 +290,23 @@
     }
 
     // Step 2: Check Tauri invoke
-    console.log('[TRIGGER] Proveravam Tauri invoke API...');
-    console.log('[TRIGGER] window.__TAURI__:', !!window.__TAURI__);
-    console.log('[TRIGGER] window.__TAURI__.core:', !!window.__TAURI__?.core);
-    console.log('[TRIGGER] window.__TAURI__.core.invoke:', typeof window.__TAURI__?.core?.invoke);
-    console.log('[TRIGGER] window.__TAURI__.invoke:', typeof window.__TAURI__?.invoke);
+    console.log('[FLOW] 4️⃣ Proveravam Tauri invoke API...');
+    console.log('[FLOW]    window.__TAURI__:', !!window.__TAURI__);
+    console.log('[FLOW]    window.__TAURI__.core:', !!window.__TAURI__?.core);
+    console.log('[FLOW]    window.__TAURI__.core.invoke:', typeof window.__TAURI__?.core?.invoke);
+    console.log('[FLOW]    window.__TAURI__.invoke:', typeof window.__TAURI__?.invoke);
     
     let invoke = null;
     if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
       invoke = window.__TAURI__.core.invoke;
-      console.log('[TRIGGER] Koristim core.invoke');
+      console.log('[FLOW] ✅ Koristim core.invoke');
       dbg('invoke: core.invoke OK');
     } else if (window.__TAURI__ && window.__TAURI__.invoke) {
       invoke = window.__TAURI__.invoke;
-      console.log('[TRIGGER] Koristim root.invoke');
+      console.log('[FLOW] ✅ Koristim root.invoke');
       dbg('invoke: root.invoke OK');
     } else {
-      console.error('[TRIGGER] __TAURI__ invoke API ne postoji!');
+      console.error('[FLOW] ❌ __TAURI__ invoke API ne postoji!');
       dbgErr('__TAURI__ invoke API ne postoji!');
       stealthResult.classList.add('fail');
       setTimeout(() => syncPosition('result'), 50);
@@ -281,54 +314,63 @@
     }
 
     // Step 3: Call Rust ask_ai
-    console.log('[TRIGGER] Pozivam ask_ai...');
+    console.log('[FLOW] 5️⃣ Pozivam Rust ask_ai funkciju...');
     dbg('ask_ai pozvan... cekam...');
     await syncPosition('result');
 
     try {
       const trimmedId = id.trim();
       const requestData = { prompt: val, clientId: trimmedId };
-      console.log('[TRIGGER] Šaljem zahtev:', requestData);
-      console.log('[TRIGGER] invoke tipa:', typeof invoke);
+      console.log('[FLOW] 6️⃣ Šaljem zahtev ka Rust backend-u:');
+      console.log('[FLOW]    Request data:', JSON.stringify(requestData, null, 2));
+      console.log('[FLOW]    invoke tipa:', typeof invoke);
       
       dbg('Šaljem zahtev ka Rust backend-u...');
+      console.log('[FLOW] 7️⃣ Pozivam invoke("ask_ai", ...)...');
       const responsePromise = invoke('ask_ai', requestData);
-      console.log('[TRIGGER] Promise kreiran, čekam odgovor...');
+      console.log('[FLOW] ✅ Promise kreiran, čekam odgovor od Rust-a...');
       
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => {
-          console.error('[TRIGGER] TIMEOUT! Server ne odgovara nakon 60s');
-          reject(new Error('TIMEOUT 60s - Server ne odgovara'));
+          console.error('[FLOW] ⏱️ TIMEOUT! Rust ne odgovara nakon 60s');
+          reject(new Error('TIMEOUT 60s - Rust ne odgovara'));
         }, 60000)
       );
 
-      console.log('[TRIGGER] Čekam Promise.race...');
+      console.log('[FLOW] 8️⃣ Čekam Promise.race (Rust odgovor ili timeout)...');
       const data = await Promise.race([responsePromise, timeoutPromise]);
-      console.log('[TRIGGER] Odgovor primljen!', data);
+      console.log('[FLOW] 9️⃣ ✅ Odgovor primljen od Rust-a!');
+      console.log('[FLOW]    Odgovor:', JSON.stringify(data, null, 2));
       dbg('Odgovor primljen! status=' + (data?.status || 'undefined'));
 
       if (data && data.status === 'success' && data.answer) {
-        console.log('[TRIGGER] Uspešan odgovor:', data.answer.substring(0, 50) + '...');
+        console.log('[FLOW] ✅✅✅ USPEŠAN ODGOVOR!');
+        console.log('[FLOW]    Odgovor (prvih 100 karaktera):', data.answer.substring(0, 100));
         lastAiResponse = data.answer;
         resLabel.textContent = data.answer;
         setTimeout(() => syncPosition('result'), 50);
+        console.log('[FLOW] 🔄 Osvežavam kredite...');
         refreshCredits(trimmedId);
       } else {
-        console.error('[TRIGGER] Neuspešan odgovor:', data);
+        console.error('[FLOW] ❌ Neuspešan odgovor:', data);
         dbgErr(data?.message || 'status=' + (data?.status || 'undefined'));
         stealthResult.classList.add('fail');
         setTimeout(() => syncPosition('result'), 50);
       }
     } catch (err) {
-      console.error('[TRIGGER] AI Request Failed:', err);
-      console.error('[TRIGGER] Error stack:', err.stack);
-      console.error('[TRIGGER] Error name:', err.name);
-      console.error('[TRIGGER] Error message:', err.message);
+      console.error('[FLOW] ❌❌❌ GREŠKA U FLOW-U!');
+      console.error('[FLOW]    Error:', err);
+      console.error('[FLOW]    Error stack:', err.stack);
+      console.error('[FLOW]    Error name:', err.name);
+      console.error('[FLOW]    Error message:', err.message);
       lastAiResponse = err.toString();
       dbgErr(err.message || String(err));
       stealthResult.classList.add('fail');
       setTimeout(() => syncPosition('result'), 50);
     }
+    console.log('========================================');
+    console.log('[FLOW] 🏁 Flow završen');
+    console.log('========================================');
   }
 
   // Wire: Enter key (without Ctrl) OR Ctrl+Enter in textarea
@@ -378,11 +420,17 @@
       newBtn.addEventListener('click', (e) => {
         console.log('[CLICK] ========== SEND BUTTON CLICKED ==========');
         console.log('[CLICK] Event:', e);
-        console.log('[CLICK] aiPrompt:', aiPrompt);
-        console.log('[CLICK] aiPrompt.value:', aiPrompt ? aiPrompt.value : 'aiPrompt je null');
         
+        // VAŽNO: Pročitaj vrednost PRE nego što se triggerAI pozove!
         const promptEl = document.getElementById('ai-prompt');
-        const val = promptEl ? promptEl.value.trim() : '';
+        console.log('[CLICK] aiPrompt element:', promptEl);
+        
+        if (!promptEl) {
+          console.error('[CLICK] ❌ ai-prompt element nije pronađen!');
+          return;
+        }
+        
+        const val = promptEl.value.trim();
         console.log('[CLICK] Trimmed value:', val);
         
         if (!val) {
@@ -390,8 +438,9 @@
           return;
         }
         
-        if (promptEl) promptEl.value = '';
-        console.log('[CLICK] Pozivam triggerAI sa:', val);
+        // Očisti vrednost PRE pozivanja triggerAI
+        promptEl.value = '';
+        console.log('[CLICK] ✅ Pozivam triggerAI sa:', val);
         triggerAI(val);
       });
       console.log('[INIT] ✅ sendBtn listener uspešno dodat!');
@@ -492,32 +541,35 @@
 
   // Event delegation as backup - listen on document for clicks
   document.addEventListener('click', (e) => {
-    console.log('[CLICK-DEBUG] Klik detektovan na:', e.target);
-    console.log('[CLICK-DEBUG] Target ID:', e.target.id);
-    console.log('[CLICK-DEBUG] Target tagName:', e.target.tagName);
-    console.log('[CLICK-DEBUG] Target classList:', e.target.classList);
-    
     // Check if clicked element is sendBtn or contains sendBtn
     const clickedBtn = e.target.closest('#sendBtn') || (e.target.id === 'sendBtn' ? e.target : null);
     
     if (clickedBtn) {
       console.log('[DELEGATION] ✅ Send button kliknut preko event delegation!');
-      console.log('[DELEGATION] Button element:', clickedBtn);
+      e.stopPropagation(); // Prevent multiple triggers
+      e.preventDefault();
+      
+      // VAŽNO: Pročitaj vrednost PRE nego što se triggerAI pozove!
       const promptEl = document.getElementById('ai-prompt');
       console.log('[DELEGATION] Prompt element:', promptEl);
-      if (promptEl) {
-        const val = promptEl.value.trim();
-        console.log('[DELEGATION] Prompt value:', val);
-        if (val) {
-          console.log('[DELEGATION] Šaljem:', val);
-          promptEl.value = '';
-          triggerAI(val);
-        } else {
-          console.warn('[DELEGATION] Prazan prompt!');
-        }
-      } else {
-        console.error('[DELEGATION] ai-prompt element nije pronađen!');
+      
+      if (!promptEl) {
+        console.error('[DELEGATION] ❌ ai-prompt element nije pronađen!');
+        return;
       }
+      
+      const val = promptEl.value.trim();
+      console.log('[DELEGATION] Prompt value:', val);
+      
+      if (!val) {
+        console.warn('[DELEGATION] Prazan prompt!');
+        return;
+      }
+      
+      // Očisti vrednost PRE pozivanja triggerAI
+      promptEl.value = '';
+      console.log('[DELEGATION] ✅ Šaljem:', val);
+      triggerAI(val);
     }
   }, true); // Use capture phase to catch all clicks
 

@@ -47,18 +47,32 @@ fn get_client() -> Result<reqwest::Client, String> {
 
 #[tauri::command]
 async fn ask_ai(prompt: String, client_id: String) -> Result<AiResponse, String> {
-    println!(">>> ask_ai called with prompt: {} and clientId: {}", prompt, client_id);
-    let client = get_client()?;
+    println!("========================================");
+    println!("[RUST] 🦀 ask_ai FUNKCIJA POZVANA!");
+    println!("[RUST] 📝 Prompt: {}", prompt);
+    println!("[RUST] 🆔 Client ID: {}", client_id);
+    println!("========================================");
+    
+    println!("[RUST] 1️⃣ Kreiranje HTTP klijenta...");
+    let client = get_client().map_err(|e| {
+        println!("[RUST] ❌ Greška pri kreiranju klijenta: {}", e);
+        e
+    })?;
+    println!("[RUST] ✅ HTTP klijent kreiran");
+    
     let req_body = AiRequest {
-        prompt,
-        client_id,
+        prompt: prompt.clone(),
+        client_id: client_id.clone(),
         extension_id: "ppbot".to_string(),
     };
 
     let url = format!("{}/answer-questions", SERVER_URL);
-    println!(">>> POSTing to: {}", url);
-    println!(">>> Request body: {:?}", serde_json::to_string(&req_body).unwrap_or_default());
+    println!("[RUST] 2️⃣ Priprema zahteva ka serveru...");
+    println!("[RUST]    URL: {}", url);
+    let req_body_json = serde_json::to_string(&req_body).unwrap_or_default();
+    println!("[RUST]    Request body: {}", req_body_json);
 
+    println!("[RUST] 3️⃣ Slanje POST zahteva ka serveru...");
     let res = client.post(&url)
         .header("Accept", "application/json")
         .header("Content-Type", "application/json")
@@ -66,34 +80,45 @@ async fn ask_ai(prompt: String, client_id: String) -> Result<AiResponse, String>
         .send()
         .await
         .map_err(|e| {
-            println!(">>> Request failed: {}", e);
+            println!("[RUST] ❌ Zahtev ka serveru neuspešan: {}", e);
             format!("Network Request Error: {}", e)
         })?;
 
     let status = res.status();
-    println!(">>> Server status: {}", status);
+    println!("[RUST] 4️⃣ Odgovor primljen od servera!");
+    println!("[RUST]    Status: {} {}", status.as_u16(), status.as_str());
 
     // Read raw response text first for debugging
+    println!("[RUST] 5️⃣ Čitanje raw odgovora...");
     let raw_text = res.text().await.map_err(|e| {
-        println!(">>> Failed to read response text: {}", e);
+        println!("[RUST] ❌ Greška pri čitanju odgovora: {}", e);
         format!("Failed to read response: {}", e)
     })?;
     
-    println!(">>> Raw server response: {}", raw_text);
+    println!("[RUST] ✅ Raw server response:");
+    println!("[RUST] {}", raw_text);
 
     if !status.is_success() {
-        println!(">>> Server error response: {}", raw_text);
+        println!("[RUST] ❌ Server je vratio grešku!");
+        println!("[RUST]    Status: {}", status);
+        println!("[RUST]    Response: {}", raw_text);
         return Err(format!("Server returned {}: {}", status, raw_text));
     }
 
     // Try to parse the response
+    println!("[RUST] 6️⃣ Parsiranje JSON odgovora...");
     let data: AiResponse = serde_json::from_str(&raw_text).map_err(|e| {
-        println!(">>> Parse error: {}", e);
-        println!(">>> Response that failed to parse: {}", raw_text);
+        println!("[RUST] ❌ Greška pri parsiranju JSON-a: {}", e);
+        println!("[RUST]    Response koji nije mogao da se parsira: {}", raw_text);
         format!("Failed to parse response: {}. Raw: {}", e, raw_text)
     })?;
 
-    println!(">>> Success! Data received: {:?}", data);
+    println!("[RUST] ✅✅✅ USPEŠNO PARSIRAN ODGOVOR!");
+    println!("[RUST]    Status: {}", data.status);
+    if let Some(ref answer) = data.answer {
+        println!("[RUST]    Answer (prvih 100 karaktera): {}", &answer.chars().take(100).collect::<String>());
+    }
+    println!("========================================");
     Ok(data)
 }
 
