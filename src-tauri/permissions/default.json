@@ -1,0 +1,8 @@
+{
+    "identifier": "default",
+    "description": "Default permissions for the PPBot app",
+    "commands": [
+        "ask_ai",
+        "refresh_credits"
+    ]
+}

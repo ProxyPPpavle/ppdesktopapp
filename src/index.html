@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>PP Ghost Agent</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    html,
+    body {
+      background: rgba(0, 0, 0, 0.01) !important;
+      /* Forces hit-test on transparent area */
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+      height: 100vh;
+      width: 100vw;
+      pointer-events: auto;
+      /* Ensure events can pass through if children allow */
+    }
+
+    .viewport {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: flex-end;
+      pointer-events: none;
+    }
+
+    /* Input Container - MAXIMUM STEALTH */
+    #minimal-input-container {
+      display: none;
+      background: rgba(15, 23, 42, 0.02);
+      border-radius: 4px;
+      width: 250px;
+      padding: 1px;
+      pointer-events: auto;
+      margin-bottom: 2px;
+      margin-right: 2px;
+    }
+
+    #ai-prompt {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.02);
+      font-size: 10px;
+      resize: none;
+      outline: none;
+      box-sizing: border-box;
+      font-family: inherit;
+      padding: 4px;
+      overflow: hidden;
+      transition: color 0.5s;
+    }
+
+    #ai-prompt:focus {
+      color: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Success Blink Animation */
+    @keyframes green-blink {
+      0% {
+        box-shadow: 0 0 0px rgba(16, 185, 129, 0);
+      }
+
+      50% {
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.8);
+        border-color: #10b981;
+      }
+
+      100% {
+        box-shadow: 0 0 0px rgba(16, 185, 129, 0);
+      }
+    }
+
+    .success-mode {
+      animation: green-blink 1s ease-in-out 2;
+    }
+
+    /* Result Checkbox */
+    #stealth-result {
+      display: none;
+      background: #0ea5e9;
+      background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+      border-radius: 18px 18px 0 18px;
+      padding: 10px 16px;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+      pointer-events: auto !important;
+      margin-bottom: 10px;
+      margin-right: 15px;
+      user-select: text;
+      transition: transform 0.2s, box-shadow 0.2s;
+      border: none;
+      z-index: 9999;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      max-width: 260px;
+      width: fit-content;
+      position: relative;
+    }
+
+    #stealth-result::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      right: -8px;
+      width: 0;
+      height: 0;
+      border-left: 10px solid #2563eb;
+      border-top: 10px solid transparent;
+    }
+
+    #stealth-result:hover {
+      transform: scale(1.02);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    #stealth-result.fail {
+      background: #ef4444;
+      background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+    }
+
+    #stealth-result.fail::after {
+      border-left-color: #b91c1c;
+    }
+
+    /* Loading state */
+    .typing-dot {
+      display: inline-block;
+      width: 4px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 50%;
+      margin: 0 2px;
+      animation: dot-blink 1.4s infinite;
+    }
+
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes dot-blink {
+
+      0%,
+      80%,
+      100% {
+        opacity: 0;
+      }
+
+      40% {
+        opacity: 1;
+      }
+    }
+
+    /* Hub View - Premium & English */
+    #hub-view {
+      display: none;
+      background: #1e293b;
+      padding: 15px;
+      border-radius: 10px;
+      width: 260px;
+      text-align: center;
+      border: 1px solid #334155;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+      pointer-events: auto;
+      margin-bottom: 5px;
+      margin-right: 5px;
+    }
+
+    #hub-view h3 {
+      color: #38bdf8;
+      margin: 0 0 10px 0;
+      font-size: 15px;
+    }
+
+    .hub-input {
+      width: 100%;
+      padding: 8px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: white;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    .btn {
+      padding: 8px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+      border: none;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .btn-main {
+      background: #38bdf8;
+      color: #0f172a;
+    }
+
+    .btn-logout {
+      background: #ef4444;
+      color: white;
+      margin-top: 8px;
+    }
+
+    #hub-status {
+      font-size: 10px;
+      margin-top: 8px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="viewport">
+    <!-- HUB -->
+    <div id="hub-view">
+      <h3>PP Agent Manager</h3>
+      <div id="setup-section">
+        <input type="text" id="clientIdInput" class="hub-input" placeholder="Client ID" spellcheck="false">
+        <button id="activateBtn" class="btn btn-main">Activate</button>
+      </div>
+      <div id="active-section" style="display: none;">
+        <p style="color: #94a3b8; font-size: 11px;">Agent is in GHOST mode.</p>
+        <div id="hub-credits" style="color: #38bdf8; font-size: 13px; font-weight: bold; margin: 10px 0;">Credits: ...
+        </div>
+        <button id="closeHubBtn" class="btn btn-main">Close Window</button>
+        <button id="logoutBtn" class="btn btn-logout">Logout</button>
+      </div>
+      <div id="hub-status">Waiting...</div>
+    </div>
+
+    <!-- Result -->
+    <div id="stealth-result">
+      <div id="res-label"
+        style="word-wrap: break-word; white-space: normal; max-height: 150px; overflow-y: auto; line-height: 1.4;">Ready
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div id="minimal-input-container">
+      <textarea id="ai-prompt" placeholder="..." spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+
+</html>
