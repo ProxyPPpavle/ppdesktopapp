@@ -39,12 +39,13 @@ const SERVER_URL: &str = "https://pp-server-eight.vercel.app";
 fn get_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .timeout(std::time::Duration::from_secs(20)) // Reduced timeout
+        .timeout(std::time::Duration::from_secs(60)) // Increased timeout for AI responses
+        .danger_accept_invalid_certs(false) // Ensure SSL verification
         .build()
         .map_err(|e| format!("Client initialization failed: {}", e))
 }
 
-#[tauri::command(rename_all = "camelCase")]
+#[tauri::command]
 async fn ask_ai(prompt: String, client_id: String) -> Result<AiResponse, String> {
     println!(">>> ask_ai called with prompt: {} and clientId: {}", prompt, client_id);
     let client = get_client()?;
@@ -56,6 +57,7 @@ async fn ask_ai(prompt: String, client_id: String) -> Result<AiResponse, String>
 
     let url = format!("{}/answer-questions", SERVER_URL);
     println!(">>> POSTing to: {}", url);
+    println!(">>> Request body: {:?}", serde_json::to_string(&req_body).unwrap_or_default());
 
     let res = client.post(&url)
         .header("Accept", "application/json")
@@ -71,22 +73,31 @@ async fn ask_ai(prompt: String, client_id: String) -> Result<AiResponse, String>
     let status = res.status();
     println!(">>> Server status: {}", status);
 
+    // Read raw response text first for debugging
+    let raw_text = res.text().await.map_err(|e| {
+        println!(">>> Failed to read response text: {}", e);
+        format!("Failed to read response: {}", e)
+    })?;
+    
+    println!(">>> Raw server response: {}", raw_text);
+
     if !status.is_success() {
-        let text = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-        println!(">>> Server error response: {}", text);
-        return Err(format!("Server returned {}: {}", status, text));
+        println!(">>> Server error response: {}", raw_text);
+        return Err(format!("Server returned {}: {}", status, raw_text));
     }
 
-    let data = res.json::<AiResponse>().await.map_err(|e| {
+    // Try to parse the response
+    let data: AiResponse = serde_json::from_str(&raw_text).map_err(|e| {
         println!(">>> Parse error: {}", e);
-        format!("Failed to parse response: {}", e)
+        println!(">>> Response that failed to parse: {}", raw_text);
+        format!("Failed to parse response: {}. Raw: {}", e, raw_text)
     })?;
 
     println!(">>> Success! Data received: {:?}", data);
     Ok(data)
 }
 
-#[tauri::command(rename_all = "camelCase")]
+#[tauri::command]
 async fn refresh_credits(client_id: String) -> Result<AiResponse, String> {
     println!(">>> refresh_credits called for clientId: {}", client_id);
     let client = get_client()?;
@@ -96,21 +107,42 @@ async fn refresh_credits(client_id: String) -> Result<AiResponse, String> {
     };
 
     let url = format!("{}/check-client", SERVER_URL);
+    println!(">>> POSTing to: {}", url);
+    
     let res = client.post(&url)
         .header("Accept", "application/json")
         .header("Content-Type", "application/json")
         .json(&req_body)
         .send()
         .await
-        .map_err(|e| format!("Network error (Status): {}\nPlease verify the server is online.", e))?;
+        .map_err(|e| {
+            println!(">>> Request failed: {}", e);
+            format!("Network error (Status): {}\nPlease verify the server is online.", e)
+        })?;
 
     let status = res.status();
+    println!(">>> Server status: {}", status);
+    
+    // Read raw response text first for debugging
+    let raw_text = res.text().await.map_err(|e| {
+        println!(">>> Failed to read response text: {}", e);
+        format!("Failed to read response: {}", e)
+    })?;
+    
+    println!(">>> Raw server response: {}", raw_text);
+    
     if !status.is_success() {
-        let text = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-        return Err(format!("Server error ({}): {}", status, text));
+        println!(">>> Server error response: {}", raw_text);
+        return Err(format!("Server error ({}): {}", status, raw_text));
     }
 
-    let data = res.json::<AiResponse>().await.map_err(|e| format!("Data error (Status): {}", e))?;
+    // Try to parse the response
+    let data: AiResponse = serde_json::from_str(&raw_text).map_err(|e| {
+        println!(">>> Parse error: {}", e);
+        println!(">>> Response that failed to parse: {}", raw_text);
+        format!("Data error (Status): {}. Raw: {}", e, raw_text)
+    })?;
+    
     println!(">>> Credits refreshed: {:?}", data);
     Ok(data)
 }

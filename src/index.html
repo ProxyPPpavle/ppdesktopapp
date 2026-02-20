@@ -254,8 +254,12 @@
     </div>
 
     <!-- Input -->
-    <div id="minimal-input-container">
-      <textarea id="ai-prompt" placeholder="..." spellcheck="false"></textarea>
+    <div id="minimal-input-container" style="display:flex; gap:4px; align-items:center;">
+      <textarea id="ai-prompt" placeholder="Upisi pitanje..." spellcheck="false" style="flex:1;"></textarea>
+      <button id="sendBtn"
+        onclick="console.log('[INLINE-ONCLICK] Send button kliknut!'); window.sendMessageToAI && window.sendMessageToAI();"
+        style="background:#38bdf8; border:none; border-radius:6px; color:#0f172a; font-weight:bold; font-size:11px; padding:4px 8px; cursor:pointer; white-space:nowrap;">▶
+        Send</button>
     </div>
   </div>
 
