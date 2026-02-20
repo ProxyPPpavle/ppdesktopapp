@@ -163,43 +163,55 @@
       inputContainer.style.display = 'none';
 
       stealthResult.classList.remove('fail');
-      resLabel.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+      resLabel.innerHTML = '<span style="font-size:10px; opacity:0.7;">[ INIT ]</span>';
       stealthResult.style.display = 'block';
 
       await syncPosition('result');
       await appWindow.show();
       await appWindow.setFocus();
 
+      const dbg = (msg) => {
+        console.log(msg);
+        resLabel.innerHTML += '<br><span style="font-size:10px;">→ ' + msg + '</span>';
+        resLabel.scrollTop = resLabel.scrollHeight;
+        syncPosition('result');
+      };
+
       try {
-        const id = localStorage.getItem('clientId').trim();
+        const id = localStorage.getItem('clientId');
+        if (!id) throw new Error("Nema Client ID u localStorage!");
+        const trimmedId = id.trim();
+        dbg('clientId: ' + trimmedId.substring(0, 8) + '...');
+
         let invoke = null;
         if (window.__TAURI__ && window.__TAURI__.core) invoke = window.__TAURI__.core.invoke;
         else if (window.__TAURI__ && window.__TAURI__.invoke) invoke = window.__TAURI__.invoke;
 
-        if (!invoke) throw new Error("Tauri API not found!");
-
-        resLabel.textContent = "Request Sent...";
+        if (!invoke) throw new Error("Tauri invoke API nije pronađen!");
+        dbg('invoke: OK. Šaljem ask_ai...');
 
         // Timeout protection for the invoke call
-        const responsePromise = invoke('ask_ai', { prompt: val, clientId: id });
+        const responsePromise = invoke('ask_ai', { prompt: val, clientId: trimmedId });
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Timeout: No response from agent backend (15s)")), 15000)
+          setTimeout(() => reject(new Error("TIMEOUT 20s - server ne odgovara")), 20000)
         );
 
+        dbg('Čekam odgovor od servera...');
         const data = await Promise.race([responsePromise, timeoutPromise]);
+        dbg('Odgovor primljen! status: ' + data.status);
 
         if (data.status === 'success' && data.answer) {
           lastAiResponse = data.answer;
           resLabel.textContent = data.answer;
           setTimeout(() => syncPosition('result'), 50);
-          refreshCredits(id);
+          refreshCredits(trimmedId);
         } else {
-          throw new Error(data.message || "No response");
+          throw new Error(data.message || 'Server vratio status: ' + data.status);
         }
       } catch (err) {
         console.error("AI Request Failed:", err);
         lastAiResponse = err.toString();
-        resLabel.textContent = "Error: " + (err.message || lastAiResponse);
+        resLabel.innerHTML += '<br><b style="color:#fca5a5;">❌ ' + (err.message || err) + '</b>';
         stealthResult.classList.add('fail');
         setTimeout(() => syncPosition('result'), 50);
       }
