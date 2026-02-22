@@ -9,29 +9,29 @@
     console.log('  core.invoke:', typeof window.__TAURI__.core?.invoke);
     console.log('  root.invoke:', typeof window.__TAURI__.invoke);
   }
-  
+
   // Expose function globally for inline onclick
-  window.sendMessageToAI = function() {
+  window.sendMessageToAI = function () {
     console.log('[GLOBAL-FUNC] sendMessageToAI pozvan!');
     const promptEl = document.getElementById('ai-prompt');
-    
+
     if (!promptEl) {
       console.error('[GLOBAL-FUNC] ❌ ai-prompt element nije pronađen!');
       return;
     }
-    
+
     // VAŽNO: Pročitaj vrednost PRE nego što se triggerAI pozove!
     const val = promptEl.value.trim();
     console.log('[GLOBAL-FUNC] Prompt value:', val);
-    
+
     if (!val) {
       console.warn('[GLOBAL-FUNC] Prazan prompt!');
       return;
     }
-    
+
     // Očisti vrednost PRE pozivanja triggerAI
     promptEl.value = '';
-    
+
     if (window.triggerAI) {
       console.log('[GLOBAL-FUNC] ✅ Pozivam triggerAI sa:', val);
       window.triggerAI(val);
@@ -77,24 +77,25 @@
   async function syncPosition(mode) {
     try {
       let w = 300, h = 210;
-      if (mode === 'input') { w = 260; h = 80; }
-      else if (mode === 'result') { w = 260; h = 260; } // taller to show debug logs
+      if (mode === 'input') { w = 260; h = 50; }
+      else if (mode === 'result') { w = 30; h = 30; }
       else if (mode === 'none') { w = 1; h = 1; }
+      else if (mode === 'hub') { w = 260; h = 200; }
 
       try {
         await appWindow.setSize(new LogicalSize(w, h));
       } catch (e) {
-        console.warn('[SYNC] setSize greška (možda nedostaju permisije):', e.message);
+        console.warn('[SYNC] setSize greška:', e.message);
       }
-      
+
       try {
         await appWindow.setIgnoreCursorEvents(mode === 'none');
       } catch (e) {
         console.warn('[SYNC] setIgnoreCursorEvents greška:', e.message);
       }
 
-      // Delay slightly for size change to reflect in OS
-      await new Promise(r => setTimeout(r, 10));
+      // Important: Wait a bit longer for the OS to register the size change
+      await new Promise(r => setTimeout(r, 100));
 
       try {
         let monitor = await appWindow.currentMonitor();
@@ -102,19 +103,28 @@
 
         if (monitor) {
           const factor = monitor.scaleFactor;
-          const screenW = monitor.size.width / factor;
-          const screenH = monitor.size.height / factor;
+          const screenW = monitor.availableSize.width / factor;
+          const screenH = monitor.availableSize.height / factor;
 
-          // Positioning: bottom right with a small margin for taskbar
-          let posX = screenW - w - 10;
-          let posY = screenH - h - 50;
+          // Positioning
+          let posX = screenW - w;
+          let posY = screenH - h;
+
+          if (mode === 'hub') {
+            posX = screenW - w;
+            posY = screenH - h;
+          }
 
           if (mode === 'none') {
             posX = screenW - 1;
             posY = screenH - 1;
           }
 
-          await appWindow.setPosition(new LogicalPosition(Math.floor(posX), Math.floor(posY)));
+          const finalX = Math.floor(posX);
+          const finalY = Math.floor(posY);
+          console.log(`[SYNC] Final Window Geometry: Mode=${mode}, Pos=[${finalX}, ${finalY}], Size=[${w}, ${h}]`);
+
+          await appWindow.setPosition(new LogicalPosition(finalX, finalY));
         }
       } catch (e) {
         console.warn('[SYNC] setPosition greška:', e.message);
@@ -140,21 +150,54 @@
       activeSection.style.display = 'none';
     }
 
+    // Sync position and size BEFORE showing to avoid visual jumps or clipping
     await syncPosition('hub');
     await appWindow.show();
     await appWindow.setFocus();
   }
 
   // Toggle Shortcut logic
-  listen('show-hub', () => showHub());
+  listen('show-hub', async () => {
+    if (hubView.style.display === 'block') {
+      hubView.style.display = 'none';
+      await appWindow.hide();
+      await syncPosition('none');
+    } else {
+      showHub();
+    }
+  });
+
+  const closeHubX = document.getElementById('close-hub-x');
+  if (closeHubX) {
+    closeHubX.addEventListener('click', async () => {
+      hubView.style.display = 'none';
+      await appWindow.hide();
+      await syncPosition('none');
+    });
+  }
+
+  listen('copy-last-response', async () => {
+    console.log('[SHORTCUT] copy-last-response pozvan!');
+    if (lastAiResponse) {
+      copyToClipboard(lastAiResponse);
+      // Flash the button if visible
+      if (stealthResult.style.display === 'flex') {
+        resLabel.textContent = '✔';
+        setTimeout(() => {
+          resLabel.textContent = 'C';
+          stealthResult.style.display = 'none';
+        }, 300);
+      }
+    }
+  });
 
   listen('focus-minimal-input', async () => {
     console.log('[SHORTCUT] focus-minimal-input pozvan!');
     const id = localStorage.getItem('clientId');
-    if (!id) { 
+    if (!id) {
       console.log('[SHORTCUT] Nema Client ID, prikazujem hub');
-      showHub(); 
-      return; 
+      showHub();
+      return;
     }
 
     // Toggle: if open, close
@@ -175,11 +218,9 @@
     await syncPosition('input'); // Handles ignoreCursorEvents
     await appWindow.show();
     await appWindow.setFocus();
-    
+
     // Re-attach listeners after showing
     setTimeout(() => {
-      console.log('[SHORTCUT] Re-attaching send button listener...');
-      attachSendButtonListener();
       aiPrompt.focus();
     }, 200);
   });
@@ -188,32 +229,37 @@
   activateBtn.addEventListener('click', async () => {
     const id = clientIdInput.value.trim();
     if (!id) return;
-    hubStatus.textContent = "Checking...";
+
+    const statusText = document.getElementById('status-text');
+    hubStatus.className = 'status-pending';
+    if (statusText) statusText.textContent = "Authenticating...";
+
     try {
-      // Using Rust backend for consistency
       let invoke = window.__TAURI__.core.invoke || window.__TAURI__.invoke;
       const data = await invoke('refresh_credits', { clientId: id });
 
       if (data.status === 'success') {
-        // ... (existing success logic)
         localStorage.setItem('clientId', id);
-        hubStatus.textContent = "Success!";
-        hubStatus.style.color = "#10b981";
+        hubStatus.className = 'status-active';
+        if (statusText) statusText.textContent = "Agent Activated";
+
         const creditsEl = document.getElementById('hub-credits');
-        if (creditsEl) creditsEl.textContent = `Credits: ${data.credits}`;
+        if (creditsEl) creditsEl.textContent = data.credits;
+
         hubView.classList.add('success-mode');
         setTimeout(() => {
           setupSection.style.display = 'none';
           activeSection.style.display = 'block';
+          hubView.classList.remove('success-mode');
         }, 1200);
       } else {
-        hubStatus.textContent = data.message || "Invalid ID.";
-        hubStatus.style.color = "#ef4444";
+        hubStatus.className = 'status-error';
+        if (statusText) statusText.textContent = data.message || "Invalid ID";
       }
     } catch (err) {
       console.error("Login Failed:", err);
-      hubStatus.textContent = "Error: " + (err.message || JSON.stringify(err) || err);
-      hubStatus.style.color = "#ef4444";
+      hubStatus.className = 'status-error';
+      if (statusText) statusText.textContent = "Connection Error";
     }
   });
 
@@ -238,28 +284,28 @@
     console.log('[FLOW] 🚀 KORISNIK JE KLIKNUO SEND!');
     console.log('[FLOW] 📝 Prompt:', val);
     console.log('========================================');
-    
+
     if (!val) {
       console.warn('[FLOW] ⚠️ Prazan prompt, izlazim');
       return;
     }
-    
+
     console.log('[FLOW] 1️⃣ Postavljam UI...');
     inputContainer.style.display = 'none';
 
     stealthResult.classList.remove('fail');
-    resLabel.innerHTML = '<span style="font-size:10px; opacity:0.7;">[ INIT ]</span>';
-    stealthResult.style.display = 'block';
+    resLabel.textContent = 'C';
+    stealthResult.style.display = 'flex';
 
     console.log('[FLOW] 2️⃣ Sync pozicije...');
     await syncPosition('result');
-    
+
     try {
       await appWindow.show();
     } catch (e) {
       console.warn('[FLOW] show() greška (možda nedostaju permisije):', e.message);
     }
-    
+
     try {
       await appWindow.setFocus();
     } catch (e) {
@@ -268,11 +314,9 @@
 
     const dbg = (msg) => {
       console.log('[FLOW-DBG]', msg);
-      resLabel.innerHTML += '<br><span style="font-size:10px; color:#93c5fd;">→ ' + msg + '</span>';
     };
     const dbgErr = (msg) => {
       console.error('[FLOW-ERR]', msg);
-      resLabel.innerHTML += '<br><b style="font-size:10px; color:#fca5a5;">❌ ' + msg + '</b>';
     };
 
     // Step 1: Check localStorage
@@ -295,7 +339,7 @@
     console.log('[FLOW]    window.__TAURI__.core:', !!window.__TAURI__?.core);
     console.log('[FLOW]    window.__TAURI__.core.invoke:', typeof window.__TAURI__?.core?.invoke);
     console.log('[FLOW]    window.__TAURI__.invoke:', typeof window.__TAURI__?.invoke);
-    
+
     let invoke = null;
     if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
       invoke = window.__TAURI__.core.invoke;
@@ -324,12 +368,12 @@
       console.log('[FLOW] 6️⃣ Šaljem zahtev ka Rust backend-u:');
       console.log('[FLOW]    Request data:', JSON.stringify(requestData, null, 2));
       console.log('[FLOW]    invoke tipa:', typeof invoke);
-      
+
       dbg('Šaljem zahtev ka Rust backend-u...');
       console.log('[FLOW] 7️⃣ Pozivam invoke("ask_ai", ...)...');
       const responsePromise = invoke('ask_ai', requestData);
       console.log('[FLOW] ✅ Promise kreiran, čekam odgovor od Rust-a...');
-      
+
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => {
           console.error('[FLOW] ⏱️ TIMEOUT! Rust ne odgovara nakon 60s');
@@ -345,9 +389,8 @@
 
       if (data && data.status === 'success' && data.answer) {
         console.log('[FLOW] ✅✅✅ USPEŠAN ODGOVOR!');
-        console.log('[FLOW]    Odgovor (prvih 100 karaktera):', data.answer.substring(0, 100));
         lastAiResponse = data.answer;
-        resLabel.textContent = data.answer;
+        resLabel.textContent = 'C';
         setTimeout(() => syncPosition('result'), 50);
         console.log('[FLOW] 🔄 Osvežavam kredite...');
         refreshCredits(trimmedId);
@@ -373,280 +416,99 @@
     console.log('========================================');
   }
 
-  // Wire: Enter key (without Ctrl) OR Ctrl+Enter in textarea
+  // Wire: Ctrl+Enter OR Ctrl+Shift+Enter in textarea
   function attachEnterKeyListener() {
     const prompt = document.getElementById('ai-prompt');
     if (prompt) {
-      console.log('[INIT] aiPrompt pronađen, dodajem Enter listener...');
       prompt.addEventListener('keydown', (e) => {
-        console.log('[KEY]', e.key, 'ctrl=', e.ctrlKey, 'shift=', e.shiftKey);
-        if (e.key === 'Enter' && !e.shiftKey) {
-          console.log('[KEY] Enter pritisnut, šaljem poruku...');
+        if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
           e.preventDefault();
           const val = prompt.value.trim();
-          console.log('[KEY] Trimmed value:', val);
-          if (!val) {
-            console.warn('[KEY] Prazan prompt, ne šaljem');
-            return;
-          }
+          if (!val) return;
           prompt.value = '';
-          console.log('[KEY] Pozivam triggerAI sa:', val);
           triggerAI(val);
         }
       });
-      console.log('[INIT] ✅ Enter key listener dodat!');
       return true;
     } else {
-      console.error('[INIT] ❌ aiPrompt NOT FOUND for Enter listener!');
       return false;
     }
   }
-  
+
   if (!attachEnterKeyListener()) {
     setTimeout(() => {
       attachEnterKeyListener();
     }, 100);
   }
 
-  // Wire Send button (sendBtn declared at top)
-  function attachSendButtonListener() {
-    const btn = document.getElementById('sendBtn');
-    if (btn) {
-      console.log('[INIT] sendBtn pronađen, dodajem listener...');
-      // Remove existing listeners by cloning
-      const newBtn = btn.cloneNode(true);
-      btn.parentNode.replaceChild(newBtn, btn);
-      
-      newBtn.addEventListener('click', (e) => {
-        console.log('[CLICK] ========== SEND BUTTON CLICKED ==========');
-        console.log('[CLICK] Event:', e);
-        
-        // VAŽNO: Pročitaj vrednost PRE nego što se triggerAI pozove!
-        const promptEl = document.getElementById('ai-prompt');
-        console.log('[CLICK] aiPrompt element:', promptEl);
-        
-        if (!promptEl) {
-          console.error('[CLICK] ❌ ai-prompt element nije pronađen!');
-          return;
-        }
-        
-        const val = promptEl.value.trim();
-        console.log('[CLICK] Trimmed value:', val);
-        
-        if (!val) {
-          console.warn('[CLICK] Prazan prompt, ne šaljem');
-          return;
-        }
-        
-        // Očisti vrednost PRE pozivanja triggerAI
-        promptEl.value = '';
-        console.log('[CLICK] ✅ Pozivam triggerAI sa:', val);
-        triggerAI(val);
-      });
-      console.log('[INIT] ✅ sendBtn listener uspešno dodat!');
-      return true;
-    } else {
-      console.error('[INIT] ❌ sendBtn NOT FOUND in DOM!');
-      return false;
-    }
-  }
-  
-  // Try to attach immediately
-  if (!attachSendButtonListener()) {
-    // If not found, try again after a short delay
-    console.log('[INIT] sendBtn nije pronađen, pokušavam ponovo za 100ms...');
-    setTimeout(() => {
-      if (!attachSendButtonListener()) {
-        console.error('[INIT] ❌ sendBtn i dalje nije pronađen nakon 100ms!');
-        // Try one more time after DOM is ready
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', () => {
-            console.log('[INIT] DOMContentLoaded, pokušavam ponovo...');
-            attachSendButtonListener();
-          });
-        }
-      }
-    }, 100);
-  }
-
   async function refreshCredits(id) {
     try {
-      console.log("Refreshing credits...");
-      let invoke = null;
-      if (window.__TAURI__ && window.__TAURI__.core) invoke = window.__TAURI__.core.invoke;
-      else if (window.__TAURI__ && window.__TAURI__.invoke) invoke = window.__TAURI__.invoke;
-
+      let invoke = window.__TAURI__.core?.invoke || window.__TAURI__.invoke;
       if (!invoke) return;
 
+      const statusText = document.getElementById('status-text');
       const data = await invoke('refresh_credits', { clientId: id.trim() });
       const creditsEl = document.getElementById('hub-credits');
-      if (creditsEl && data.status === 'success') {
-        creditsEl.textContent = `Credits: ${data.credits}`;
+
+      if (data.status === 'success') {
+        if (creditsEl) creditsEl.textContent = data.credits;
+        hubStatus.className = 'status-active';
+        if (statusText) statusText.textContent = "Agent Active";
+      } else {
+        hubStatus.className = 'status-error';
+        if (statusText) statusText.textContent = "Session Error";
       }
-    } catch (e) { console.error("Refresh credits failed", e); }
+    } catch (e) {
+      console.error("Refresh credits failed", e);
+    }
+  }
+
+  async function copyToClipboard(text) {
+    try {
+      const tauri = window.__TAURI__;
+      if (tauri && tauri.clipboard) {
+        await tauri.clipboard.writeText(text);
+      } else {
+        await navigator.clipboard.writeText(text);
+      }
+      return true;
+    } catch (err) {
+      console.error("Clipboard failed:", err);
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
   }
 
   stealthResult.addEventListener('click', async (e) => {
-    e.stopPropagation(); // Prevent issues
+    e.stopPropagation();
     if (lastAiResponse) {
-      resLabel.textContent = "COPYING...";
+      await copyToClipboard(lastAiResponse);
 
-      let copied = false;
-      try {
-        const tauri = window.__TAURI__;
-        // 1. Try Tauri v2 Clipboard plugin if available on window
-        if (tauri && tauri.clipboard) {
-          await tauri.clipboard.writeText(lastAiResponse);
-          copied = true;
-        } else {
-          // Fallback to internal plugin call if possible or just navigator
-          // But the best is to use the global tauri.core.invoke if we had a rust command for it
-          // Let's use navigator.clipboard as it works well in webview if window is focused
-          await navigator.clipboard.writeText(lastAiResponse);
-          copied = true;
-        }
-      } catch (err) {
-        console.error("Clipboard failed:", err);
-        // Nuclear Fallback
-        try {
-          const textArea = document.createElement("textarea");
-          textArea.value = lastAiResponse;
-          textArea.style.position = "fixed";
-          textArea.style.left = "-9999px";
-          textArea.style.top = "0";
-          document.body.appendChild(textArea);
-          textArea.focus();
-          textArea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textArea);
-          copied = true;
-        } catch (e) { }
-      }
-
-      if (copied) {
-        resLabel.textContent = "COPIED!";
-      } else {
-        resLabel.textContent = "ERROR (C)";
-      }
-
-      // Keep "COPIED!" visible for a moment before hiding
-      setTimeout(async () => {
-        stealthResult.style.display = 'none';
-        resLabel.textContent = "Ready";
-        await appWindow.hide();
-        await syncPosition('none');
-      }, 300);
+      // Hide after copy
+      stealthResult.style.display = 'none';
+      await appWindow.hide();
+      await syncPosition('none');
     }
   });
-
-  // Event delegation as backup - listen on document for clicks
-  document.addEventListener('click', (e) => {
-    // Check if clicked element is sendBtn or contains sendBtn
-    const clickedBtn = e.target.closest('#sendBtn') || (e.target.id === 'sendBtn' ? e.target : null);
-    
-    if (clickedBtn) {
-      console.log('[DELEGATION] ✅ Send button kliknut preko event delegation!');
-      e.stopPropagation(); // Prevent multiple triggers
-      e.preventDefault();
-      
-      // VAŽNO: Pročitaj vrednost PRE nego što se triggerAI pozove!
-      const promptEl = document.getElementById('ai-prompt');
-      console.log('[DELEGATION] Prompt element:', promptEl);
-      
-      if (!promptEl) {
-        console.error('[DELEGATION] ❌ ai-prompt element nije pronađen!');
-        return;
-      }
-      
-      const val = promptEl.value.trim();
-      console.log('[DELEGATION] Prompt value:', val);
-      
-      if (!val) {
-        console.warn('[DELEGATION] Prazan prompt!');
-        return;
-      }
-      
-      // Očisti vrednost PRE pozivanja triggerAI
-      promptEl.value = '';
-      console.log('[DELEGATION] ✅ Šaljem:', val);
-      triggerAI(val);
-    }
-  }, true); // Use capture phase to catch all clicks
-
-  // Test function - manually trigger send
-  window.testSend = function() {
-    console.log('[TEST] testSend pozvan!');
-    const promptEl = document.getElementById('ai-prompt');
-    const sendBtnEl = document.getElementById('sendBtn');
-    const containerEl = document.getElementById('minimal-input-container');
-    
-    console.log('[TEST] promptEl:', promptEl);
-    console.log('[TEST] sendBtnEl:', sendBtnEl);
-    console.log('[TEST] containerEl:', containerEl);
-    console.log('[TEST] container display:', containerEl ? window.getComputedStyle(containerEl).display : 'N/A');
-    console.log('[TEST] container visible:', containerEl ? containerEl.offsetParent !== null : 'N/A');
-    
-    if (promptEl && promptEl.value.trim()) {
-      console.log('[TEST] Pozivam triggerAI direktno...');
-      triggerAI(promptEl.value.trim());
-    } else {
-      console.log('[TEST] Dodajem test tekst...');
-      if (promptEl) {
-        promptEl.value = 'test pitanje';
-        console.log('[TEST] Test tekst dodat, pozivam triggerAI...');
-        triggerAI('test pitanje');
-      }
-    }
-  };
-  
-  console.log('[INIT] Test funkcija dostupna: window.testSend()');
 
   // Init check
   const startId = localStorage.getItem('clientId');
   if (!startId) {
-    console.log('[INIT] Nema Client ID, prikazujem hub');
     showHub();
   } else {
-    console.log('[INIT] Client ID postoji, sakrivam prozor');
     syncPosition('none');
   }
 
-  console.log('[INIT] ✅ Svi event listeneri su postavljeni!');
-  console.log('[INIT] ⚠️ VAŽNO: Input container je sakriven po defaultu!');
-  console.log('[INIT] ⚠️ Pritisni Ctrl+Shift+K da otvoriš input!');
-  console.log('[INIT] ⚠️ Ili pozovi window.testSend() u konzoli za test!');
-  
-  // Final check - test if elements exist and are accessible
-  setTimeout(() => {
-    const sendBtnEl = document.getElementById('sendBtn');
-    const promptEl = document.getElementById('ai-prompt');
-    const containerEl = document.getElementById('minimal-input-container');
-    
-    console.log('[INIT-CHECK] Finalna provera elemenata:');
-    console.log('[INIT-CHECK] sendBtn:', sendBtnEl);
-    console.log('[INIT-CHECK] sendBtn display:', sendBtnEl ? window.getComputedStyle(sendBtnEl).display : 'N/A');
-    console.log('[INIT-CHECK] sendBtn pointer-events:', sendBtnEl ? window.getComputedStyle(sendBtnEl).pointerEvents : 'N/A');
-    console.log('[INIT-CHECK] sendBtn visible:', sendBtnEl ? sendBtnEl.offsetParent !== null : 'N/A');
-    console.log('[INIT-CHECK] aiPrompt:', promptEl);
-    console.log('[INIT-CHECK] container:', containerEl);
-    console.log('[INIT-CHECK] container display:', containerEl ? window.getComputedStyle(containerEl).display : 'N/A');
-    
-    // Try to manually trigger click to test
-    if (sendBtnEl) {
-      console.log('[INIT-CHECK] Testiram direktan klik na sendBtn...');
-      sendBtnEl.onclick = function(e) {
-        console.log('[DIRECT-ONCLICK] ✅ Send button kliknut direktno!', e);
-        const promptEl = document.getElementById('ai-prompt');
-        if (promptEl) {
-          const val = promptEl.value.trim();
-          if (val) {
-            promptEl.value = '';
-            triggerAI(val);
-          }
-        }
-      };
-      console.log('[INIT-CHECK] ✅ Direktan onclick handler dodat!');
-    }
-  }, 500);
-
+  console.log('[INIT] ✅ PP Agent Loaded');
 })();

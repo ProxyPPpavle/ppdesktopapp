@@ -192,8 +192,8 @@ pub fn run() {
                 let window_size = window.outer_size().unwrap().to_logical::<f64>(scale_factor);
                 let screen_size = monitor_size.to_logical::<f64>(scale_factor);
 
-                let x = screen_size.width - window_size.width - 20.0;
-                let y = screen_size.height - window_size.height - 60.0;
+                let x = screen_size.width - window_size.width;
+                let y = screen_size.height - window_size.height;
 
                 let _ = window.set_position(tauri::LogicalPosition::new(x, y));
             }
@@ -241,6 +241,16 @@ pub fn run() {
                         let _ = window.emit("focus-minimal-input", "");
                         let _ = window.show();
                         let _ = window.set_focus();
+                    }
+                }
+            })?;
+
+            // Shortcut: Ctrl + Shift + X (Copy last AI response)
+            let shortcut_x = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyX);
+            app.global_shortcut().on_shortcut(shortcut_x, move |app_handle, _shortcut, event| {
+                if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.emit("copy-last-response", "");
                     }
                 }
             })?;

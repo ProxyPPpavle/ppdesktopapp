@@ -36,20 +36,55 @@
     /* Input Container - MAXIMUM STEALTH */
     #minimal-input-container {
       display: none;
-      background: rgba(15, 23, 42, 0.02);
-      border-radius: 4px;
+      background: rgba(15, 23, 42, 0.03);
+      border-radius: 2px;
       width: 250px;
       padding: 1px;
       pointer-events: auto;
-      margin-bottom: 2px;
-      margin-right: 2px;
+      margin-bottom: 0px;
+      margin-right: 0px;
+    }
+
+    /* Hub View - Premium & Modern */
+    #hub-view {
+      display: none;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      padding: 16px;
+      border-radius: 12px;
+      width: 260px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+      pointer-events: auto;
+      margin: 0;
+      box-sizing: border-box;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      max-height: 100vh;
+      overflow-y: auto;
+    }
+
+    #close-hub-x {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      cursor: pointer;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 14px;
+      transition: color 0.2s;
+      z-index: 100;
+    }
+
+    #close-hub-x:hover {
+      color: #f87171;
     }
 
     #ai-prompt {
       width: 100%;
       background: transparent;
       border: none;
-      color: rgba(255, 255, 255, 0.02);
+      color: rgba(255, 255, 255, 0.01);
       font-size: 10px;
       resize: none;
       outline: none;
@@ -60,8 +95,12 @@
       transition: color 0.5s;
     }
 
+    #ai-prompt::placeholder {
+      color: rgba(255, 255, 255, 0.01);
+    }
+
     #ai-prompt:focus {
-      color: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.05);
     }
 
     /* Success Blink Animation */
@@ -84,52 +123,37 @@
       animation: green-blink 1s ease-in-out 2;
     }
 
-    /* Result Checkbox */
+    /* Result Checkbox - Now a small 'C' button */
     #stealth-result {
       display: none;
-      background: #0ea5e9;
-      background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
-      border-radius: 18px 18px 0 18px;
-      padding: 10px 16px;
-      color: white;
-      font-size: 13px;
+      background: rgba(255, 255, 255, 0.01);
+      border-radius: 1px;
+      width: 16px;
+      height: 16px;
+      color: rgba(255, 255, 255, 0.03);
+      font-size: 9px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       pointer-events: auto !important;
-      margin-bottom: 10px;
-      margin-right: 15px;
-      user-select: text;
-      transition: transform 0.2s, box-shadow 0.2s;
+      margin-bottom: 0px;
+      margin-right: 0px;
+      transition: background 0.2s, color 0.2s;
       border: none;
       z-index: 9999;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-      max-width: 260px;
-      width: fit-content;
       position: relative;
     }
 
-    #stealth-result::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      right: -8px;
-      width: 0;
-      height: 0;
-      border-left: 10px solid #2563eb;
-      border-top: 10px solid transparent;
-    }
-
     #stealth-result:hover {
-      transform: scale(1.02);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      background: rgba(14, 165, 233, 0.05);
+      color: rgba(255, 255, 255, 0.2);
     }
 
     #stealth-result.fail {
-      background: #ef4444;
-      background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
-    }
-
-    #stealth-result.fail::after {
-      border-left-color: #b91c1c;
+      background: rgba(255, 255, 255, 0.01);
+      color: rgba(255, 255, 255, 0.02);
     }
 
     /* Loading state */
@@ -164,65 +188,185 @@
       }
     }
 
-    /* Hub View - Premium & English */
-    #hub-view {
-      display: none;
-      background: #1e293b;
-      padding: 15px;
-      border-radius: 10px;
-      width: 260px;
-      text-align: center;
-      border: 1px solid #334155;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
-      pointer-events: auto;
-      margin-bottom: 5px;
-      margin-right: 5px;
+    .hub-header {
+      margin-bottom: 14px;
+    }
+
+    .hub-header i {
+      font-size: 24px;
+      color: #38bdf8;
+      margin-bottom: 8px;
+      display: block;
+      filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4));
     }
 
     #hub-view h3 {
-      color: #38bdf8;
-      margin: 0 0 10px 0;
-      font-size: 15px;
+      color: #f8fafc;
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+
+    .hub-subtitle {
+      color: #94a3b8;
+      font-size: 11px;
+      margin-top: 2px;
+      display: block;
+    }
+
+    .hub-input-group {
+      position: relative;
+      margin-bottom: 12px;
+      text-align: left;
+    }
+
+    .hub-input-group label {
+      display: block;
+      font-size: 10px;
+      color: #64748b;
+      margin-bottom: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .hub-input {
       width: 100%;
-      padding: 8px;
-      background: #0f172a;
-      border: 1px solid #334155;
-      color: white;
+      padding: 10px;
+      background: rgba(2, 6, 23, 0.5);
+      border: 1px solid rgba(51, 65, 85, 0.5);
+      color: #f8fafc;
       border-radius: 6px;
-      margin-bottom: 10px;
       outline: none;
       box-sizing: border-box;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+
+    .hub-input:focus {
+      border-color: #38bdf8;
+      background: rgba(2, 6, 23, 0.8);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
     }
 
     .btn {
-      padding: 8px;
+      padding: 10px;
       border-radius: 6px;
-      font-weight: bold;
+      font-weight: 600;
       cursor: pointer;
       width: 100%;
       border: none;
       font-size: 12px;
-      margin-top: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+      box-sizing: border-box;
     }
 
     .btn-main {
-      background: #38bdf8;
-      color: #0f172a;
+      background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+      color: #0c4a6e;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid rgba(51, 65, 85, 1);
+      color: #94a3b8;
+      margin-top: 8px;
     }
 
     .btn-logout {
-      background: #ef4444;
-      color: white;
-      margin-top: 8px;
+      background: transparent;
+      color: #f87171;
+      margin-top: 6px;
+      font-size: 10px;
+      opacity: 0.7;
+    }
+
+    .stats-card {
+      background: rgba(2, 6, 23, 0.4);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(51, 65, 85, 0.3);
+    }
+
+    #hub-credits {
+      color: #f8fafc;
+      font-size: 20px;
+      font-weight: 800;
+      margin: 2px 0;
+    }
+
+    .stats-label {
+      font-size: 10px;
+      color: #64748b;
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+
+    .ghost-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(56, 189, 248, 0.1);
+      color: #38bdf8;
+      padding: 3px 6px;
+      border-radius: 99px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 10px;
     }
 
     #hub-status {
       font-size: 10px;
-      margin-top: 8px;
-      color: #94a3b8;
+      margin-top: 12px;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+
+    .status-active .status-dot {
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .status-error .status-dot {
+      background: #ef4444;
+    }
+
+    .status-pending .status-dot {
+      background: #f59e0b;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+
+      100% {
+        opacity: 1;
+      }
     }
   </style>
 </head>
@@ -231,35 +375,59 @@
   <div class="viewport">
     <!-- HUB -->
     <div id="hub-view">
-      <h3>PP Agent Manager</h3>
+      <div id="close-hub-x">
+        <i class="fas fa-times"></i>
+      </div>
+      <div class="hub-header">
+        <i class="fas fa-ghost"></i>
+        <h3>PP Agent Manager</h3>
+        <span class="hub-subtitle">Silent AI Assistance</span>
+      </div>
+
       <div id="setup-section">
-        <input type="text" id="clientIdInput" class="hub-input" placeholder="Client ID" spellcheck="false">
-        <button id="activateBtn" class="btn btn-main">Activate</button>
-      </div>
-      <div id="active-section" style="display: none;">
-        <p style="color: #94a3b8; font-size: 11px;">Agent is in GHOST mode.</p>
-        <div id="hub-credits" style="color: #38bdf8; font-size: 13px; font-weight: bold; margin: 10px 0;">Credits: ...
+        <div class="hub-input-group">
+          <label for="clientIdInput">Authentication</label>
+          <input type="text" id="clientIdInput" class="hub-input" placeholder="Enter Client ID..." spellcheck="false">
         </div>
-        <button id="closeHubBtn" class="btn btn-main">Close Window</button>
-        <button id="logoutBtn" class="btn btn-logout">Logout</button>
+        <button id="activateBtn" class="btn btn-main">
+          <i class="fas fa-bolt"></i> Activate Agent
+        </button>
       </div>
-      <div id="hub-status">Waiting...</div>
+
+      <div id="active-section" style="display: none;">
+        <div class="ghost-badge">
+          <i class="fas fa-shield-halved"></i> GHOST MODE ACTIVE
+        </div>
+
+        <div class="stats-card">
+          <div class="stats-label">Available API Credits</div>
+          <div id="hub-credits">...</div>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button id="closeHubBtn" class="btn btn-main" style="margin-top: 0; flex: 1;">
+            <i class="fas fa-circle-xmark"></i> Close
+          </button>
+          <button id="logoutBtn" class="btn btn-outline" style="margin-top: 0; flex: 1; padding: 10px 4px;">
+            <i class="fas fa-right-from-bracket"></i> Logout
+          </button>
+        </div>
+      </div>
+
+      <div id="hub-status">
+        <div class="status-dot"></div>
+        <span id="status-text">System Ready</span>
+      </div>
     </div>
 
     <!-- Result -->
     <div id="stealth-result">
-      <div id="res-label"
-        style="word-wrap: break-word; white-space: normal; max-height: 150px; overflow-y: auto; line-height: 1.4;">Ready
-      </div>
+      <span id="res-label">C</span>
     </div>
 
     <!-- Input -->
-    <div id="minimal-input-container" style="display:flex; gap:4px; align-items:center;">
-      <textarea id="ai-prompt" placeholder="Upisi pitanje..." spellcheck="false" style="flex:1;"></textarea>
-      <button id="sendBtn"
-        onclick="console.log('[INLINE-ONCLICK] Send button kliknut!'); window.sendMessageToAI && window.sendMessageToAI();"
-        style="background:#38bdf8; border:none; border-radius:6px; color:#0f172a; font-weight:bold; font-size:11px; padding:4px 8px; cursor:pointer; white-space:nowrap;">▶
-        Send</button>
+    <div id="minimal-input-container">
+      <textarea id="ai-prompt" placeholder="Upisi pitanje..." spellcheck="false"></textarea>
     </div>
   </div>
 
