@@ -8,7 +8,7 @@
   <style>
     html,
     body {
-      background: rgba(0, 0, 0, 0.01) !important;
+      background: rgba(0, 0, 0, 0) !important;
       /* Forces hit-test on transparent area */
       margin: 0;
       padding: 0;
@@ -36,9 +36,10 @@
     /* Input Container - MAXIMUM STEALTH */
     #minimal-input-container {
       display: none;
-      background: rgba(15, 23, 42, 0.03);
+      background: rgba(0, 0, 0, 0);
       border-radius: 2px;
-      width: 250px;
+      width: 350px;
+      /* Povećana širina ekrana za lakši pogodak */
       padding: 1px;
       pointer-events: auto;
       margin-bottom: 0px;
@@ -82,25 +83,31 @@
 
     #ai-prompt {
       width: 100%;
-      background: transparent;
-      border: none;
-      color: rgba(255, 255, 255, 0.01);
-      font-size: 10px;
+      height: 80px;
+      /* Povećana visina area-e */
+      background: transparent !important;
+      border: none !important;
+      color: rgba(255, 255, 255, 0) !important;
+      font-size: 14px;
       resize: none;
-      outline: none;
+      outline: none !important;
       box-sizing: border-box;
       font-family: inherit;
-      padding: 4px;
+      padding: 20px;
+      /* Mnogo veći unutrašnji klikabilni prostor */
       overflow: hidden;
-      transition: color 0.5s;
+      caret-color: transparent !important;
+      cursor: text !important;
+      /* Vraćen kursor za kucanje */
+      transition: none;
     }
 
     #ai-prompt::placeholder {
-      color: rgba(255, 255, 255, 0.01);
+      color: rgba(255, 255, 255, 0);
     }
 
     #ai-prompt:focus {
-      color: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0);
     }
 
     /* Success Blink Animation */

@@ -223,7 +223,7 @@ pub fn run() {
 
             // Shortcut: Ctrl + Shift + A (Open/Close Setup Window)
             let shortcut_a = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyA);
-            app.global_shortcut().on_shortcut(shortcut_a, move |app_handle, _shortcut, event| {
+            let _ = app.global_shortcut().on_shortcut(shortcut_a, move |app_handle, _shortcut, event| {
                 if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                     if let Some(window) = app_handle.get_webview_window("main") {
                         let _ = window.emit("show-hub", "");
@@ -231,11 +231,11 @@ pub fn run() {
                         let _ = window.set_focus();
                     }
                 }
-            })?;
+            });
 
             // Shortcut: Ctrl + Shift + K (Focus Minimal AI Input)
             let shortcut_k = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyK);
-            app.global_shortcut().on_shortcut(shortcut_k, move |app_handle, _shortcut, event| {
+            let _ = app.global_shortcut().on_shortcut(shortcut_k, move |app_handle, _shortcut, event| {
                 if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                     if let Some(window) = app_handle.get_webview_window("main") {
                         let _ = window.emit("focus-minimal-input", "");
@@ -243,17 +243,17 @@ pub fn run() {
                         let _ = window.set_focus();
                     }
                 }
-            })?;
+            });
 
             // Shortcut: Ctrl + Shift + X (Copy last AI response)
             let shortcut_x = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyX);
-            app.global_shortcut().on_shortcut(shortcut_x, move |app_handle, _shortcut, event| {
+            let _ = app.global_shortcut().on_shortcut(shortcut_x, move |app_handle, _shortcut, event| {
                 if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                     if let Some(window) = app_handle.get_webview_window("main") {
                         let _ = window.emit("copy-last-response", "");
                     }
                 }
-            })?;
+            });
 
             Ok(())
         })
