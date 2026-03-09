@@ -245,15 +245,6 @@ pub fn run() {
                 }
             });
 
-            // Shortcut: Ctrl + Shift + X (Copy last AI response)
-            let shortcut_x = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyX);
-            let _ = app.global_shortcut().on_shortcut(shortcut_x, move |app_handle, _shortcut, event| {
-                if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        let _ = window.emit("copy-last-response", "");
-                    }
-                }
-            });
 
             Ok(())
         })

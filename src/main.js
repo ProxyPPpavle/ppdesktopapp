@@ -176,20 +176,6 @@
     });
   }
 
-  listen('copy-last-response', async () => {
-    console.log('[SHORTCUT] copy-last-response pozvan!');
-    if (lastAiResponse) {
-      copyToClipboard(lastAiResponse);
-      // Flash the button if visible
-      if (stealthResult.style.display === 'flex') {
-        resLabel.textContent = '✔';
-        setTimeout(() => {
-          resLabel.textContent = 'C';
-          stealthResult.style.display = 'none';
-        }, 300);
-      }
-    }
-  });
 
   listen('focus-minimal-input', async () => {
     console.log('[SHORTCUT] focus-minimal-input pozvan!');
@@ -244,7 +230,18 @@
         if (statusText) statusText.textContent = "Agent Activated";
 
         const creditsEl = document.getElementById('hub-credits');
-        if (creditsEl) creditsEl.textContent = data.credits;
+        const badgeEl = document.querySelector('.ghost-badge');
+
+        if (creditsEl) creditsEl.textContent = (id === 'PP') ? '∞' : data.credits;
+        if (badgeEl && id === 'PP') {
+          badgeEl.innerHTML = '<i class="fas fa-shield-halved"></i> ADMIN MODE ACTIVE';
+          badgeEl.style.color = '#10b981';
+          badgeEl.style.background = 'rgba(16, 185, 129, 0.1)';
+        } else if (badgeEl) {
+          badgeEl.innerHTML = '<i class="fas fa-shield-halved"></i> GHOST MODE ACTIVE';
+          badgeEl.style.color = '';
+          badgeEl.style.background = '';
+        }
 
         hubView.classList.add('success-mode');
         setTimeout(() => {
@@ -389,12 +386,28 @@
 
       if (data && data.status === 'success' && data.answer) {
         console.log('[FLOW] ✅✅✅ USPEŠAN ODGOVOR!');
-        lastAiResponse = data.answer;
-        resLabel.textContent = 'C';
-        setTimeout(() => syncPosition('result'), 50);
+
+        // Clean markdown code blocks and extract raw content
+        const cleanedAnswer = cleanCodeResponse(data.answer);
+        lastAiResponse = cleanedAnswer;
+
+        // AUTOMATIC COPY
+        console.log('[FLOW] 📋 Automatsko kopiranje u clipboard...');
+        await copyToClipboard(cleanedAnswer);
+
+        // Indicate success with checkmark
+        resLabel.textContent = '✔';
+        setTimeout(async () => {
+          resLabel.textContent = 'C';
+          stealthResult.style.display = 'none';
+          await appWindow.hide();
+          await syncPosition('none');
+        }, 1500); // 1.5 seconds visibility before total stealth
+
         console.log('[FLOW] 🔄 Osvežavam kredite...');
         refreshCredits(trimmedId);
-      } else {
+      }
+      else {
         console.error('[FLOW] ❌ Neuspešan odgovor:', data);
         dbgErr(data?.message || 'status=' + (data?.status || 'undefined'));
         stealthResult.classList.add('fail');
@@ -451,7 +464,19 @@
       const creditsEl = document.getElementById('hub-credits');
 
       if (data.status === 'success') {
-        if (creditsEl) creditsEl.textContent = data.credits;
+        if (creditsEl) creditsEl.textContent = (id.trim() === 'PP') ? '∞' : data.credits;
+
+        const badgeEl = document.querySelector('.ghost-badge');
+        if (badgeEl && id.trim() === 'PP') {
+          badgeEl.innerHTML = '<i class="fas fa-shield-halved"></i> ADMIN MODE ACTIVE';
+          badgeEl.style.color = '#10b981';
+          badgeEl.style.background = 'rgba(16, 185, 129, 0.1)';
+        } else if (badgeEl) {
+          badgeEl.innerHTML = '<i class="fas fa-shield-halved"></i> GHOST MODE ACTIVE';
+          badgeEl.style.color = '';
+          badgeEl.style.background = '';
+        }
+
         hubStatus.className = 'status-active';
         if (statusText) statusText.textContent = "Agent Active";
       } else {
@@ -461,6 +486,24 @@
     } catch (e) {
       console.error("Refresh credits failed", e);
     }
+  }
+
+  function cleanCodeResponse(text) {
+    if (!text) return "";
+
+    // 1. Check for markdown code blocks: ```lang\n[code]\n```
+    // We match the content inside the blocks and ignore the language tag
+    const codeBlockRegex = /```(?:\w+\s*\n)?([\s\S]*?)```/g;
+    const matches = Array.from(text.matchAll(codeBlockRegex));
+
+    if (matches.length > 0) {
+      // If code blocks exist, join their contents
+      return matches.map(m => m[1].trim()).join('\n\n');
+    }
+
+    // 2. If no code blocks, check for any remaining backticks (e.g. inline `code`)
+    // and remove them if that's what the user wants, or just return trimmed text
+    return text.replace(/`/g, '').trim();
   }
 
   async function copyToClipboard(text) {
